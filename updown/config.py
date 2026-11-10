@@ -61,12 +61,12 @@ class StrategyCfg:
     window_start_s: int = 90
     window_end_s: int = 30
     min_lead_bps: float = 7.0
-    lead_stable_s: float = 4.0
+    lead_stable_s: float = 0.0          # 0 = off (spec murni: window+lead+harga saja)
     max_eff_price: float = 0.90
     max_ask: float = 0.90
-    max_spread_ticks: int = 3
-    min_book_shares: float = 150.0
-    book_max_age_s: float = 6.0
+    max_spread_ticks: int = 0           # 0 = off
+    min_book_shares: float = 0.0        # 0 = off
+    book_max_age_s: float = 10.0        # 0 = off (WS realtime → biasanya ~0s)
     use_vol_filter: bool = False
     vol_default_bps_sqrt_s: float = 0.75
     vol_min_bps_sqrt_s: float = 0.30

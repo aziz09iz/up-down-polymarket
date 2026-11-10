@@ -130,14 +130,17 @@ class SpotTracker:
 
 
 class WsFeed:
-    """Binance bookTicker WebSocket with auto-reconnect; gives up -> REST fallback."""
+    """Binance bookTicker WebSocket — sumber utama, reconnect terus (senyap).
 
-    def __init__(self, tracker: SpotTracker, on_permanent_fail=None):
+    REST poller tetap standby sebagai jaring pengaman; kegagalan WS dicatat
+    satu kali sebagai warning, sisanya DEBUG, dan koneksi dicoba ulang terus.
+    """
+
+    def __init__(self, tracker: SpotTracker):
         self.tracker = tracker
-        self.on_permanent_fail = on_permanent_fail
         self._task: Optional[asyncio.Task] = None
         self.connected = False
-        self.gave_up = False
+        self._warned = False
 
     async def start(self):
         self._task = asyncio.create_task(self._run(), name="binance-ws")
@@ -156,9 +159,11 @@ class WsFeed:
                 async with aiohttp.ClientSession() as sess:
                     async with sess.ws_connect(BINANCE_WS, heartbeat=30,
                                                timeout=aiohttp.ClientWSTimeout(ws_receive=15)) as ws:
+                        if not self.connected:
+                            log.info("binance WS connected")
                         self.connected = True
+                        self._warned = False
                         fails = 0
-                        log.info("binance WS connected")
                         async for msg in ws:
                             if msg.type == aiohttp.WSMsgType.TEXT:
                                 try:
@@ -174,15 +179,14 @@ class WsFeed:
                 raise
             except Exception as exc:  # noqa: BLE001
                 fails += 1
-                log.warning("binance WS error (%s): %s", type(exc).__name__, exc)
-            self.connected = False
-            if fails >= 3 and not self.gave_up:
-                self.gave_up = True
-                log.error("binance WS failed %d× — falling back to REST polling", fails)
-                if self.on_permanent_fail:
-                    self.on_permanent_fail()
-                return
-            await asyncio.sleep(min(2.0 * fails, 15.0))
+                self.connected = False
+                if not self._warned:
+                    self._warned = True
+                    log.warning("binance WS tidak tersedia (%s) — REST polling standby, "
+                                "reconnect otomatis", type(exc).__name__)
+                else:
+                    log.debug("binance WS reconnect (%d): %s", fails, exc)
+            await asyncio.sleep(min(5.0 + 2.0 * fails, 30.0))
 
 
 class RestPoller:
@@ -265,16 +269,12 @@ class SpotManager:
         self._pollers.append(rest)
         await rest.start()
         if self._use_ws:
-            self._ws = WsFeed(self.primary, on_permanent_fail=self._on_ws_gave_up)
+            self._ws = WsFeed(self.primary)
             await self._ws.start()
         if self.secondary:
             p = RestPoller(self.secondary, self.secondary.name, self._secondary_poll)
             self._pollers.append(p)
             await p.start()
-
-    def _on_ws_gave_up(self):
-        log.warning("WS feed nonaktif — REST poller mengambil alih (%.1fs)",
-                    self._poll_sec)
 
     async def stop(self):
         if self._ws:

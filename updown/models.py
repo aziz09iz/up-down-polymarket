@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -137,21 +137,3 @@ class Decision:
 
     def failed_rules(self) -> list:
         return [f"{k}: {v[1]}" for k, v in self.reasons.items() if not v[0]]
-
-
-@dataclass
-class RoundResult:
-    slug: str
-    winner: Optional[str]
-    ptb: Optional[float]
-    close: Optional[float]
-    our_side: Optional[str]
-    pnl: float
-    resolution_source: str
-    end_ts: float
-
-
-def pos_to_row(p: Position) -> dict:
-    d = asdict(p)
-    d.pop("fills", None)
-    return d

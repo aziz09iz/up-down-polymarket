@@ -28,15 +28,15 @@ feeds:
   clock_sync: true             # sinkronkan jam lokal ke timestamp Polymarket
 
 strategy:
-  window_start_s: 90           # mulai cari entry saat sisa waktu <= 90 detik
-  window_end_s: 30             # stop entry saat sisa waktu < 30 detik
+  window_start_s: 90           # masuk saat sisa waktu <= 90 detik
+  window_end_s: 30             # berhenti masuk saat sisa waktu < 30 detik (hindari sniping akhir)
   min_lead_bps: 7.0            # lead minimal spot-vs-PTB (spec: 6–8 bps)
-  lead_stable_s: 4             # lead harus stabil >= threshold selama N detik
-  max_eff_price: 0.90          # harga EFEKTIF (ask + fee per share) maksimal
+  lead_stable_s: 0             # 0 = off (opsional: lead harus stabil N detik)
+  max_eff_price: 0.90          # harga EFEKTIF (ask + fee per share) maksimal — spec 0.88–0.90
   max_ask: 0.90                # ask mentah maksimal
-  max_spread_ticks: 3          # spread book sisi favorit maksimal (tick)
-  min_book_shares: 150         # kedalaman ask minimum (shares) di level <= max_ask
-  book_max_age_s: 6            # orderbook lebih tua dari ini → jangan entry
+  max_spread_ticks: 0          # 0 = off (opsional: batas spread favorit)
+  min_book_shares: 0           # 0 = off (opsional: kedalaman ask minimum)
+  book_max_age_s: 10           # 0 = off (WS realtime → biasanya ~0 detik)
   use_vol_filter: false        # filter EV model Brownian (opsional, default off)
   vol_default_bps_sqrt_s: 0.75 # vol default jika estimasi belum tersedia
   vol_min_bps_sqrt_s: 0.30

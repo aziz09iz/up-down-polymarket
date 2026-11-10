@@ -108,18 +108,20 @@ class LateWindowStrategy:
         rule("lead", abs(lead_bps) >= c.min_lead_bps,
              f"{lead_bps:+.1f}bps vs min {c.min_lead_bps}bps")
 
-        # 3) lead stability
+        # 3) lead stability — hanya jika diaktifkan (lead_stable_s > 0)
         stable = self.stable_for(now)
         metrics["stable_for"] = round(stable, 1)
-        rule("stable", stable >= c.lead_stable_s and self._lead_side == side,
-             f"stabil {stable:.1f}s/{c.lead_stable_s}s")
+        if c.lead_stable_s > 0:
+            rule("stable", stable >= c.lead_stable_s and self._lead_side == side,
+                 f"stabil {stable:.1f}s/{c.lead_stable_s}s")
 
         book: Optional[Book] = books.get(side)
         if book is None or not book.asks:
             rule("book", False, "orderbook sisi favorit tidak tersedia")
             return self._finish("skip", side, reasons, metrics)
-        book_age = time.time() - book.ts
-        rule("book_fresh", book_age <= c.book_max_age_s, f"umur book {book_age:.1f}s")
+        if c.book_max_age_s > 0:
+            book_age = time.time() - book.ts
+            rule("book_fresh", book_age <= c.book_max_age_s, f"umur book {book_age:.1f}s")
 
         ask = book.best_ask or 1.0
         eff = effective_price(ask, fee_rate)
@@ -133,10 +135,11 @@ class LateWindowStrategy:
         rule("eff_cap", eff <= c.max_eff_price + 1e-9,
              f"eff={eff:.4f} max={c.max_eff_price} (fee/sh={fee_per_share(ask, fee_rate):.4f})")
 
-        # 5) book quality
-        if spread is not None:
+        # 5) book quality — opsional (0 = off)
+        if c.max_spread_ticks > 0 and spread is not None:
             rule("spread", spread <= c.max_spread_ticks, f"{spread} tick")
-        rule("depth", depth >= c.min_book_shares, f"{depth:.0f} shares ≤ {c.max_ask}")
+        if c.min_book_shares > 0:
+            rule("depth", depth >= c.min_book_shares, f"{depth:.0f} shares ≤ {c.max_ask}")
 
         # 6) optional EV filter (Brownian bridge estimate)
         if c.use_vol_filter:

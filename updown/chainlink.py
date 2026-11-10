@@ -170,13 +170,3 @@ class ChainlinkFeed:
                 return ptb, src, warn
             await asyncio.sleep(max(interval, self.hard_gap + 0.5))
         return ptb, src, warn
-
-    async def wait_completed(self, start_ts: float, deadline_ts: float,
-                             interval: float = 8.0) -> Optional[Chainlink]:
-        """Poll after round close until Chainlink marks the window completed."""
-        while time.time() < deadline_ts:
-            sample = await self.fetch(start_ts, force=True)
-            if sample and sample.completed and sample.open_price and sample.close_price:
-                return sample
-            await asyncio.sleep(max(interval, self.hard_gap + 0.5))
-        return self._cache.get(int(start_ts))

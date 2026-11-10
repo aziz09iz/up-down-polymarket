@@ -112,21 +112,28 @@ def test_strategy():
                    asks=[Level(0.87, 3000), Level(0.88, 2000)])
     book_dn = Book("t2", now, bids=[Level(0.12, 5000)], asks=[Level(0.13, 3000)])
 
-    # belum stabil
+    # (a) default = spec murni (window + lead + harga) → entry langsung
     st.observe(8.0, now)
     d = st.evaluate(t_left=60, ptb=ptb, live_price=live, spot_age=0.2,
                     divergence_bps=None, now=now,
                     books={"Up": book_up, "Down": book_dn}, vol_bps_sqrt_s=0.75)
-    check("stabil < 4s → tidak entry", not d.ok and "stable" in d.reasons,
+    check("default (tanpa stability) → ENTER Up langsung", d.ok and d.side == "Up",
           str(d.failed_rules()))
-    # stabil 5 detik (reset dulu agar observe mencatat waktu baru)
-    st.observe(0.0, now - 6)
-    st.observe(8.0, now - 5)
-    d = st.evaluate(t_left=60, ptb=ptb, live_price=live, spot_age=0.2,
-                    divergence_bps=None, now=now,
-                    books={"Up": book_up, "Down": book_dn}, vol_bps_sqrt_s=0.75)
-    check("semua aturan ok → ENTER Up", d.ok and d.side == "Up",
-          str(d.failed_rules()))
+    # (b) stability opsional: lead_stable_s=4
+    st_stab = LateWindowStrategy(mkcfg(strategy__lead_stable_s=4))
+    st_stab.observe(8.0, now)
+    d_st = st_stab.evaluate(t_left=60, ptb=ptb, live_price=live, spot_age=0.2,
+                            divergence_bps=None, now=now,
+                            books={"Up": book_up, "Down": book_dn}, vol_bps_sqrt_s=0.75)
+    check("lead_stable_s=4 belum stabil → skip",
+          not d_st.ok and "stable" in d_st.reasons, str(d_st.failed_rules()))
+    st_stab.observe(0.0, now - 6)
+    st_stab.observe(8.0, now - 5)
+    d_st = st_stab.evaluate(t_left=60, ptb=ptb, live_price=live, spot_age=0.2,
+                            divergence_bps=None, now=now,
+                            books={"Up": book_up, "Down": book_dn}, vol_bps_sqrt_s=0.75)
+    check("lead_stable_s=4 stabil 5s → ENTER Up", d_st.ok and d_st.side == "Up",
+          str(d_st.failed_rules()))
     # luar window (t_left=120) → wait
     d2 = st.evaluate(t_left=120, ptb=ptb, live_price=live, spot_age=0.2,
                      divergence_bps=None, now=now,

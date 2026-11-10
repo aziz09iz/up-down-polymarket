@@ -1,0 +1,19 @@
+[Unit]
+Description=Polymarket BTC 5m Up/Down — paper trading bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=updown
+Group=updown
+WorkingDirectory=/opt/up-down-polymarket
+ExecStart=/opt/up-down-polymarket/.venv/bin/python -u main.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=append:/opt/up-down-polymarket/data/logs/systemd.log
+StandardError=append:/opt/up-down-polymarket/data/logs/systemd.log
+
+[Install]
+WantedBy=multi-user.target

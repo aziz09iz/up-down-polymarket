@@ -1,0 +1,13 @@
+__pycache__/
+.mimosa
+*.pyc
+.env
+data/*.db
+data/*.db-journal
+data/logs/
+data/reports/
+data/runtime.json
+data/backtest_cache.json
+.venv/
+
+.mimosa/

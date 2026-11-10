@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Polymarket BTC 5m Up/Down — Paper Trading Bot
+# Config utama. Secrets di .env. Perubahan runtime via /set (data/runtime.json).
+# ─────────────────────────────────────────────────────────────────────────────
+
+paper:
+  start_balance: 1000.0        # saldo awal USDC (paper)
+  data_dir: data               # sqlite, log, report
+
+market:
+  series_slug: btc-updown-5m   # slug event Polymarket: {series}-{start_epoch}
+  symbol: btc                  # simbol utk API crypto Polymarket (btc/eth/sol)
+  tick_size: 0.01
+  min_order_shares: 5          # minimum_order_size CLOB
+  fee_rate: 0.07               # taker fee Crypto: fee = shares * rate * p * (1-p)
+
+feeds:
+  spot_primary: binance        # binance | bybit | coinbase | okx
+  spot_ws: true                # coba WebSocket dulu, auto-fallback REST polling
+  spot_poll_sec: 1.0           # cadence REST fallback
+  spot_secondary: coinbase     # sumber kedua utk cross-check ('' = off)
+  spot_secondary_poll_sec: 3.0
+  max_divergence_bps: 0        # skip entry jika dua sumber beda > ini (0 = off;
+                               # wajar Binance BTCUSDT vs Coinbase BTC-USD selisih >10bps)
+  chainlink_poll_sec: 20       # interval minimum crypto-price (API situs rate-limited!)
+  book_poll_sec: 1.5           # cadence orderbook CLOB di dalam entry window
+  book_idle_poll_sec: 6.0      # cadence orderbook di luar window
+  clock_sync: true             # sinkronkan jam lokal ke timestamp Polymarket
+
+strategy:
+  window_start_s: 90           # mulai cari entry saat sisa waktu <= 90 detik
+  window_end_s: 30             # stop entry saat sisa waktu < 30 detik
+  min_lead_bps: 7.0            # lead minimal spot-vs-PTB (spec: 6–8 bps)
+  lead_stable_s: 4             # lead harus stabil >= threshold selama N detik
+  max_eff_price: 0.90          # harga EFEKTIF (ask + fee per share) maksimal
+  max_ask: 0.90                # ask mentah maksimal
+  max_spread_ticks: 3          # spread book sisi favorit maksimal (tick)
+  min_book_shares: 150         # kedalaman ask minimum (shares) di level <= max_ask
+  book_max_age_s: 6            # orderbook lebih tua dari ini → jangan entry
+  use_vol_filter: false        # filter EV model Brownian (opsional, default off)
+  vol_default_bps_sqrt_s: 0.75 # vol default jika estimasi belum tersedia
+  vol_min_bps_sqrt_s: 0.30
+  vol_max_bps_sqrt_s: 3.00
+  min_edge: 0.005              # p_model - eff_price minimal (jika use_vol_filter)
+  flip_exit_bps: 0             # >0 = jual early jika lead balik <= -X bps; 0 = hold to maturity
+
+execution:
+  latency_ms: 300              # simulasi latensi order
+  adverse_move_prob: 0.5       # probabilitas book geser melawan saat order tiba
+  adverse_move_ticks: 1
+  participation: 0.15          # maks % size per level book yang boleh kita ambil
+  exhausted_penalty_ticks: 2   # penalti harga jika depth habis sebelum stake terisi
+  stake_mode: fixed            # fixed | equity_pct
+  stake_usdc: 25.0
+  stake_pct: 2.5               # % equity (jika stake_mode=equity_pct)
+  max_stake_usdc: 100.0
+
+risk:
+  daily_loss_limit_usdc: 150.0 # stop trading hari itu jika rugi kumulatif >= ini
+  loss_streak_pause: 4         # setelah N loss beruntun -> pause
+  pause_rounds: 6              # jumlah round yang di-skip saat pause
+  max_open_positions: 1
+
+telegram:
+  enabled: auto                # auto | true | false
+  notify_entry: true
+  notify_fill: true
+  notify_resolution: true
+  notify_errors: true
+  notify_skips: false          # true = kirim alasan skip tiap evaluasi (spam!)
+  summary_utc_hour: 0          # ringkasan harian pada jam UTC ini (-1 = off)

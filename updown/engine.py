@@ -419,11 +419,15 @@ class Engine:
         deadline = mkt.end_ts + deadline_extra
         winner_cl = close_cl = None
         tried_gamma = 0.0
+        last_cl = 0.0
         while self.now() < deadline:
-            cl = await self.chainlink.fetch(mkt.start_ts, force=True)
-            if cl and cl.completed and cl.open_price and cl.close_price:
-                close_cl = cl.close_price
-                winner_cl = "Up" if cl.close_price >= cl.open_price else "Down"
+            # chainlink dipolling jarang (host situs rate-limited); gamma tiap 12s
+            if self.now() - last_cl >= 20:
+                last_cl = self.now()
+                cl = await self.chainlink.fetch(mkt.start_ts, force=True)
+                if cl and cl.completed and cl.open_price and cl.close_price:
+                    close_cl = cl.close_price
+                    winner_cl = "Up" if cl.close_price >= cl.open_price else "Down"
             if self.now() - tried_gamma > 12:
                 tried_gamma = self.now()
                 with contextlib.suppress(ApiError):
@@ -440,7 +444,7 @@ class Engine:
                 # beri gamma kesempatan singkat utk konfirmasi, tapi jangan lama
                 await asyncio.sleep(3)
                 return winner_cl, "chainlink", close_cl
-            await asyncio.sleep(10)
+            await asyncio.sleep(6)
         # fallback terakhir: price-history (point di open vs point di end)
         hist = await self.chainlink.fetch_history(mkt.start_ts, max_age=2.0)
         p_open = hist_point_at(hist, mkt.start_ts)

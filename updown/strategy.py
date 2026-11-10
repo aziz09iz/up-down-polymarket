@@ -115,6 +115,19 @@ class LateWindowStrategy:
             rule("stable", stable >= c.lead_stable_s and self._lead_side == side,
                  f"stabil {stable:.1f}s/{c.lead_stable_s}s")
 
+        # 3b) beli sisi UNGGUL — arah lead harus searah favorit pasar (harga > 0.5),
+        #     bukan membeli underdog murah. Ini inti spec "beli sisi yang unggul".
+        b_up = books.get("Up")
+        b_dn = books.get("Down")
+        mid_up = b_up.mid if b_up else None
+        mid_dn = b_dn.mid if b_dn else None
+        market_fav = None
+        if mid_up is not None and mid_dn is not None:
+            market_fav = "Up" if mid_up >= mid_dn else "Down"
+        metrics["market_fav"] = market_fav or "?"
+        rule("side_agree", market_fav is not None and side == market_fav,
+             f"lead→{side} vs market→{market_fav or '?'}")
+
         book: Optional[Book] = books.get(side)
         if book is None or not book.asks:
             rule("book", False, "orderbook sisi favorit tidak tersedia")

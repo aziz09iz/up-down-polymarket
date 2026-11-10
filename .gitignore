@@ -1,5 +1,4 @@
 __pycache__/
-.mimosa
 *.pyc
 .env
 data/*.db
@@ -9,5 +8,5 @@ data/reports/
 data/runtime.json
 data/backtest_cache.json
 .venv/
-
+data-vps/
 .mimosa/

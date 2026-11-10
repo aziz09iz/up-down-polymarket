@@ -158,15 +158,28 @@ def test_strategy():
                      books={"Up": rich, "Down": book_dn}, vol_bps_sqrt_s=0.75)
     check("ask 0.93 → skip (eff cap)", not d5.ok and "eff_cap" in d5.reasons,
           str(d5.failed_rules()))
-    # sisi Down unggul
+    # sisi Down unggul: lead -9 + pasar favorit Down (Up murah, Down mahal)
     st.observe(-9.0, now - 10)
     d6 = st.evaluate(t_left=70, ptb=ptb, live_price=99910.0, spot_age=0.2,
                      divergence_bps=None, now=now,
-                     books={"Up": book_up, "Down": Book(
-                         "t3", now, bids=[Level(0.85, 5000)],
-                         asks=[Level(0.86, 3000)])}, vol_bps_sqrt_s=0.75)
-    check("lead -9bps → ENTER Down", d6.ok and d6.side == "Down",
+                     books={"Up": Book("t2", now, bids=[Level(0.12, 5000)],
+                                       asks=[Level(0.13, 3000)]),
+                            "Down": Book("t3", now, bids=[Level(0.85, 5000)],
+                                         asks=[Level(0.86, 3000)])},
+                     vol_bps_sqrt_s=0.75)
+    check("lead -9bps + pasar Down → ENTER Down", d6.ok and d6.side == "Down",
           str(d6.failed_rules()))
+    # lead +8 tapi pasar malah Down (lead vs pasar tidak searah) → skip
+    st.observe(8.0, now - 10)
+    d6b = st.evaluate(t_left=60, ptb=ptb, live_price=live, spot_age=0.2,
+                      divergence_bps=None, now=now,
+                      books={"Up": Book("t2", now, bids=[Level(0.12, 5000)],
+                                        asks=[Level(0.13, 3000)]),
+                             "Down": Book("t3", now, bids=[Level(0.85, 5000)],
+                                          asks=[Level(0.86, 3000)])},
+                      vol_bps_sqrt_s=0.75)
+    check("lead↑ vs pasar↓ → skip (side_agree)", not d6b.ok and "side_agree" in d6b.reasons,
+          str(d6b.failed_rules()))
     # spot basi
     d7 = st.evaluate(t_left=60, ptb=ptb, live_price=live, spot_age=9.0,
                      divergence_bps=None, now=now,

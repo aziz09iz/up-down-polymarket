@@ -92,6 +92,17 @@ class Engine:
                  self.cfg.market.fee_rate)
         await self.spot.start()
         self.broker.bootstrap_from_store()
+        # sanity: stake harus cukup utk memenuhi min order di harga favorit
+        min_stake = self.cfg.market.min_order_shares * self.cfg.strategy.max_eff_price
+        eff_stake = self.broker.stake_for()
+        if eff_stake < min_stake:
+            log.error("STAKE terlalu kecil: stake=%.2f < min=%.2f (5 share × %.2f). "
+                      "Entry sisi favorit akan selalu ditolak!", eff_stake, min_stake,
+                      self.cfg.strategy.max_eff_price)
+            await self.alert(f"⚠️ STAKE_USDC terlalu kecil ({eff_stake:.2f}) untuk "
+                             f"beli favorit ≤ {self.cfg.strategy.max_eff_price} "
+                             f"(butuh ≥ {min_stake:.2f}). Naikkan STAKE_USDC atau turunkan "
+                             "max_eff_price.")
         self._bg_tasks.append(asyncio.create_task(self._background_resolver(),
                                                   name="bg-resolver"))
         self._bg_tasks.append(asyncio.create_task(self._daily_summary_loop(),
@@ -351,6 +362,13 @@ class Engine:
                     if not can:
                         skip_reason = why
                     else:
+                        # refresh buku KEDUA sisi (WS fresh) utk cek lead vs pasar
+                        for s2 in ("Up", "Down"):
+                            b2 = self.clob_ws.get_book(mkt.token(s2), max_age=3.0)
+                            if b2 is None:
+                                b2 = await take_book(s2)
+                            if b2:
+                                books[s2] = b2
                         d = self.strategy.evaluate(
                             t_left=t_left, ptb=mkt.ptb, live_price=live,
                             spot_age=self.spot.primary.age_s,

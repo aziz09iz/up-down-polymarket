@@ -51,7 +51,7 @@ execution:
   participation: 0.15          # maks % size per level book yang boleh kita ambil
   exhausted_penalty_ticks: 2   # penalti harga jika depth habis sebelum stake terisi
   stake_mode: fixed            # fixed | equity_pct
-  stake_usdc: 1.0              # ukuran posisi USDC per trade (stake_mode=fixed)
+  stake_usdc: 5.0              # ukuran posisi USDC per trade (stake_mode=fixed)
   stake_pct: 2.5               # % equity (jika stake_mode=equity_pct)
   max_stake_usdc: 100.0
 

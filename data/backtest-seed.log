@@ -1,0 +1,57 @@
+16:55:20 INFO    #01 794387900 Up lead+11.1 ask0.550 → WON pnl +3.81
+16:55:20 INFO    #02 794387000 Down lead-47.5 ask0.600 → WON pnl +3.11
+16:55:20 INFO    #03 794386100 Down lead-47.5 ask0.860 → WON pnl +0.76
+16:56:03 INFO    #04 794382200 Up lead+37.8 ask0.640 → LOST pnl -5.00
+16:57:39 INFO    #05 794379800 Down lead-43.6 ask0.670 → LOST pnl -5.00
+16:59:27 INFO    #06 794377100 Down lead-7.4 ask0.740 → WON pnl +1.64
+17:00:45 WARNING 429 from polymarket.com — backing off 2.0s
+17:00:51 WARNING 429 from polymarket.com — backing off 4.0s
+17:00:55 WARNING chainlink fetch failed: GET https://polymarket.com/api/crypto/crypto-price failed after 2 tries (last status 429, last error None)
+17:06:45 INFO    #07 794361200 Up lead+43.5 ask0.775 → LOST pnl -5.00
+17:07:09 INFO    #08 794360600 Up lead+31.9 ask0.790 → WON pnl +1.24
+17:08:58 INFO    #09 794357900 Down lead-31.2 ask0.750 → LOST pnl -5.00
+17:15:27 WARNING 429 from polymarket.com — backing off 2.0s
+17:20:34 WARNING 429 from polymarket.com — backing off 2.0s
+17:21:58 INFO    #10 794338700 Down lead-9.2 ask0.730 → LOST pnl -5.00
+17:25:16 WARNING 429 from polymarket.com — backing off 2.0s
+17:26:53 INFO    #11 794331500 Up lead+22.3 ask0.785 → WON pnl +1.27
+17:28:53 INFO    #12 794328500 Down lead-38.1 ask0.725 → WON pnl +1.77
+17:30:05 INFO    #13 794326700 Up lead+12.0 ask0.820 → LOST pnl -5.00
+17:33:53 INFO    #14 794321000 Up lead+43.1 ask0.830 → WON pnl +0.95
+17:35:46 WARNING 429 from polymarket.com — backing off 2.0s
+17:37:59 INFO    #15 794315000 Down lead-10.5 ask0.650 → LOST pnl -5.00
+17:40:29 WARNING 429 from polymarket.com — backing off 2.0s
+17:40:35 WARNING 429 from polymarket.com — backing off 4.0s
+17:40:39 WARNING chainlink fetch failed: GET https://polymarket.com/api/crypto/crypto-price failed after 2 tries (last status 429, last error None)
+17:43:53 INFO    #16 794301800 Down lead-52.1 ask0.630 → WON pnl +2.74
+17:45:31 WARNING 429 from polymarket.com — backing off 2.0s
+17:45:34 WARNING 429 from polymarket.com — backing off 4.0s
+17:45:38 WARNING chainlink fetch failed: GET https://polymarket.com/api/crypto/crypto-price failed after 2 tries (last status 429, last error None)
+17:47:06 INFO    #17 794293400 Down lead-20.0 ask0.760 → WON pnl +1.47
+17:50:27 WARNING 429 from polymarket.com — backing off 2.0s
+17:50:45 WARNING 429 from polymarket.com — backing off 2.0s
+17:50:51 WARNING 429 from polymarket.com — backing off 4.0s
+17:50:55 WARNING chainlink fetch failed: GET https://polymarket.com/api/crypto/crypto-price failed after 2 tries (last status 429, last error None)
+17:53:57 INFO    #18 794278400 Down lead-32.3 ask0.640 → WON pnl +2.62
+17:54:10 INFO    #19 794278100 Down lead-32.7 ask0.630 → WON pnl +2.74
+17:55:39 WARNING 429 from polymarket.com — backing off 2.0s
+17:55:57 WARNING 429 from polymarket.com — backing off 2.0s
+17:58:46 INFO    #20 794271500 Down lead-43.6 ask0.550 → WON pnl +3.81
+17:59:34 INFO    #21 794270300 Down lead-30.3 ask0.675 → WON pnl +2.24
+18:00:39 WARNING 429 from polymarket.com — backing off 2.0s
+18:00:45 WARNING 429 from polymarket.com — backing off 4.0s
+18:00:49 WARNING chainlink fetch failed: GET https://polymarket.com/api/crypto/crypto-price failed after 2 tries (last status 429, last error None)
+
+==============================================================
+BACKTEST 420 round dicoba | 21 trade | 89 round tanpa data | skip: {'side_agree': 91, 'ask_cap': 162, 'lead': 57}
+==============================================================
+**Hasil (stake $5.0/trade, lead≥7.0bps, eff≤0.9, entry T-60s)**
+Trades: 21 (W14/L7/S0) — win rate 66.7%
+Net PnL: -4.83 USDC (ROI -4.69%)
+Profit factor: 0.86 — expectancy -0.230/trade
+Avg win +2.15 / avg loss -5.00 — best +3.81 / worst -5.00
+Fees paid: 2.12 — slippage: 0.00
+Avg entry 0.705 (eff 0.7188) — avg t_left 60s @ |lead| 30.8bps
+Max drawdown: 28.12 (2.79%) — streaks W6/L2
+Saldo akhir: 995.17 USDC (-0.48%)
+CSV: C:\Users\ahmad\ZCodeProjects\up-down-beta\data\reports\backtest-20261111-180111.csv

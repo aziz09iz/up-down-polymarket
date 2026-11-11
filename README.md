@@ -35,7 +35,7 @@ harian **Markdown**, dan **backtester** berbasis data riil.
 Entry **hanya** di window sisa waktu **90 → 30 detik**, beli sisi yang unggul:
 
 1. **Window** — `30s ≤ t_left ≤ 90s` (di luar itu: tidak ada order, hanya observasi)
-2. **Lead** — `|spot − price-to-beat| / PTB ≥ min_lead_bps` (default **7 bps**, rentang spec 6–8)
+2. **Lead** — `|spot − price-to-beat| / PTB ≥ min_lead_bps` (default **6 bps**, rentang spec 6–8)
 3. **Harga tiket favorit (setelah fee)** — `ask + fee_per_share ≤ max_eff_price` (default **0.90**)
    - contoh nyata: ask `0.87` → fee/sh `0.07×0.87×0.13 = 0.0079` → eff `0.8779` ✅
    - ask `0.90` → eff `0.9063` ❌ (lewat cap) — break-even win-rate ≈ 90.6%
@@ -89,7 +89,7 @@ Telegram.
         ▼               ▼            ▼               ▼                  ▼
   polymarket.py   chainlink.py    spot.py        strategy.py        paper.py
   Gamma: event    crypto-price    Binance WS     aturan 90–30s,     broker paper:
-  slug/tokens/    (PTB + close,   bookTicker +   lead ≥ 7bps,       book-walk, fee
+  slug/tokens/    (PTB + close,   bookTicker +   lead ≥ 6bps,       book-walk, fee
   outcome; CLOB:  completed)      REST fallback  eff ≤ 0.90,        0.07·p·(1−p),
   /book /fee-rate                 + kalibrasi    side_agree,        slippage, latensi
   /prices-history                 offset Chainlink  flip exit          │
@@ -216,7 +216,7 @@ Parameter strategi utama:
 | Key | Default | Arti |
 |---|---|---|
 | `strategy.window_start_s` / `window_end_s` | 90 / 30 | batas window entry (detik tersisa) |
-| `strategy.min_lead_bps` | 7.0 | lead minimum (spec: 6–8) |
+| `strategy.min_lead_bps` | 6.0 | lead minimum (spec: 6–8) |
 | `strategy.flip_exit_bps` | 7.0 | jual early jika lead balik ≤ −X bps melawan posisi (0 = hold to maturity) |
 | `strategy.lead_stable_s` | 0 (off) | lead harus stabil selama N detik |
 | `strategy.max_eff_price` | 0.90 | cap harga **setelah fee** |

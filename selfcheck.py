@@ -103,7 +103,7 @@ def test_fill_sim():
 
 
 def test_strategy():
-    print("[3] Aturan strategi late-window (spec 90–30s, lead≥7bps, eff≤0.90)")
+    print("[3] Aturan strategi late-window (spec 90–30s, lead≥6bps, eff≤0.90)")
     cfg = mkcfg()
     st = LateWindowStrategy(cfg)
     now = time.time()
@@ -288,7 +288,7 @@ def test_broker_store():
 def test_config_runtime():
     print("[5] Config: yaml + env + runtime override (/set)")
     cfg = load()
-    check("config.yaml kebaca", cfg.strategy.min_lead_bps == 7.0,
+    check("config.yaml kebaca", cfg.strategy.min_lead_bps == 6.0,
           str(cfg.strategy.min_lead_bps))
     check("window 90/30", cfg.strategy.window_start_s == 90
           and cfg.strategy.window_end_s == 30)

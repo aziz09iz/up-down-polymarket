@@ -32,7 +32,7 @@ import sys
 import time
 from pathlib import Path
 
-from updown.chainlink import ChainlinkFeed, choose_ptb, hist_point_at
+from updown.chainlink import ChainlinkFeed, hist_point_at
 from updown.config import load
 from updown.polymarket import ApiError, ClobClient, GammaClient, Http
 from updown.stats import compute_stats, format_stats_md
@@ -109,14 +109,18 @@ async def fetch_round(gamma: GammaClient, clob: ClobClient, cl: ChainlinkFeed,
             path = data
     out["path"] = path
 
-    # PTB cross-validated — sama dengan bot live: openPrice bisa basi, maka
-    # cross-check dengan titik pertama price-history.
+    # PTB cross-validated — sama dengan bot live: openPrice bisa basi (beku),
+    # maka titik pertama price-history (= round open) jadi referensi yang benar.
     if isinstance(path, list):
         hist_open = hist_point_at(path, start)
         if hist_open:
-            ptb, p_src, _ = choose_ptb(sample.open_price, hist_open, None)
-            out["ptb"] = ptb
-            out["ptb_source"] = p_src
+            if (sample.open_price and
+                    abs(sample.open_price - hist_open) / hist_open * 1e4 <= 5.0):
+                out["ptb"] = sample.open_price
+                out["ptb_source"] = "chainlink"
+            else:
+                out["ptb"] = hist_open
+                out["ptb_source"] = "chainlink_hist"
         else:
             out["ptb_source"] = "chainlink"
     else:

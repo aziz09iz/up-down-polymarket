@@ -60,7 +60,7 @@ class FeedsCfg:
 class StrategyCfg:
     window_start_s: int = 90
     window_end_s: int = 30
-    min_lead_bps: float = 7.0
+    min_lead_bps: float = 6.0
     lead_stable_s: float = 0.0          # 0 = off (spec murni: window+lead+harga saja)
     max_eff_price: float = 0.90
     max_ask: float = 0.90

@@ -30,7 +30,7 @@ feeds:
 strategy:
   window_start_s: 90           # masuk saat sisa waktu <= 90 detik
   window_end_s: 30             # berhenti masuk saat sisa waktu < 30 detik (hindari sniping akhir)
-  min_lead_bps: 7.0            # lead minimal spot-vs-PTB (spec: 6–8 bps)
+  min_lead_bps: 6.0            # lead minimal spot-vs-PTB (batas bawah spec 6–8; entry jarang)
   lead_stable_s: 0             # 0 = off (opsional: lead harus stabil N detik)
   max_eff_price: 0.90          # harga EFEKTIF (ask + fee per share) maksimal — spec 0.88–0.90
   max_ask: 0.90                # ask mentah maksimal

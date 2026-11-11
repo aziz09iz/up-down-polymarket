@@ -309,14 +309,34 @@ sudo -u updown .venv/bin/pip install -r requirements.txt
 sudo -u updown cp .env.example .env
 sudo -u updown nano .env          # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_IDS, STAKE_USDC
 
-# 5. Verifikasi
+# 5. Verifikasi + folder log (dibutuhkan systemd StandardOutput=append:)
 sudo -u updown .venv/bin/python selfcheck.py
+sudo -u updown mkdir -p data/logs
 
 # 6. Install & start service
 sudo cp deploy/updown-bot.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now updown-bot
 ```
+
+**Alternatif — clone di home, jalankan sebagai user kamu sendiri** (mis.
+`~/up-down-polymarket` sebagai `ubuntu`): unit repo mengasumsikan user `updown`
+di `/opt/...`; sesuaikan otomatis dari template:
+
+```bash
+cd ~/up-down-polymarket
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # bila belum ada venv
+cp .env.example .env && nano .env                                    # bila belum ada .env
+mkdir -p data/logs
+sed -e "s|^User=.*|User=$USER|" -e "s|^Group=.*|Group=$USER|" \
+    -e "s|/opt/up-down-polymarket|$PWD|g" \
+    deploy/updown-bot.service | sudo tee /etc/systemd/system/updown-bot.service >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl enable --now updown-bot
+```
+
+> Service gagal dengan `status=217/USER` → user di unit tidak ada (pakai
+> alternatif di atas). Gagal di step STDOUT → `data/logs/` belum dibuat.
 
 ### Operasional (systemctl)
 

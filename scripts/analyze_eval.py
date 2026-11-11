@@ -20,7 +20,7 @@ from updown.stats import compute_stats  # noqa: E402
 
 _ALLOWED_SUFFIX = (".db", ".sqlite", ".sqlite3")
 _DB_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
-_DEFAULT_DB = "data-vps/extracted/data/updown.db"
+_DEFAULT_DB = "data/updown.db"
 
 
 def _open_readonly(db: str) -> sqlite3.Connection:

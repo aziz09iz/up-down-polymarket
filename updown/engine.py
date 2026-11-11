@@ -99,10 +99,10 @@ class Engine:
             log.error("STAKE terlalu kecil: stake=%.2f < min=%.2f (5 share × %.2f). "
                       "Entry sisi favorit akan selalu ditolak!", eff_stake, min_stake,
                       self.cfg.strategy.max_eff_price)
-            await self.alert(f"⚠️ STAKE_USDC terlalu kecil ({eff_stake:.2f}) untuk "
-                             f"beli favorit ≤ {self.cfg.strategy.max_eff_price} "
-                             f"(butuh ≥ {min_stake:.2f}). Naikkan STAKE_USDC atau turunkan "
-                             "max_eff_price.")
+            await self.alert(f"STAKE_USDC terlalu kecil ({eff_stake:.2f}) — beli "
+                             f"favorit ≤ {self.cfg.strategy.max_eff_price} butuh "
+                             f"≥ {min_stake:.2f} (min {self.cfg.market.min_order_shares} "
+                             "share). Naikkan STAKE_USDC atau turunkan max_eff_price.")
         self._bg_tasks.append(asyncio.create_task(self._background_resolver(),
                                                   name="bg-resolver"))
         self._bg_tasks.append(asyncio.create_task(self._daily_summary_loop(),
@@ -347,9 +347,9 @@ class Engine:
                         if book and book.bids and \
                                 self.broker.market_sell(pos, book, "flip_exit"):
                             await self.notify(
-                                f"➖ <b>FLIP EXIT — {pos.side}</b>\n"
-                                f"Lead berbalik {signed:+.1f}bps ≤ "
-                                f"-{s.flip_exit_bps}bps, t_left {t_left:.0f}s\n"
+                                f"➖ <b>FLIP EXIT {F.esc(pos.side)}</b>\n"
+                                f"Lead berbalik {signed:+.1f} bps"
+                                f" (batas -{s.flip_exit_bps}) · t-{t_left:.0f}s\n"
                                 f"PnL {F.usd(pos.pnl_net, sign=True)} USDC")
                             log.info("flip exit %s pnl=%.2f", mkt.slug, pos.pnl_net)
 
@@ -408,8 +408,8 @@ class Engine:
                                     now - self._last_skip_notify > 20:
                                 self._last_skip_notify = now
                                 await self.notify(
-                                    f"⏭ Skip {mkt.slug[-9:]}"
-                                    f" (t-{t_left:.0f}s): {F.esc(skip_reason)}")
+                                    f"Skip <code>{F.esc(mkt.slug[-9:])}</code>"
+                                    f" · t-{t_left:.0f}s — {F.esc(skip_reason)}")
                 if not traded and live is None:
                     skip_reason = "spot feed tidak tersedia"
             elif not traded and t_left < s.window_end_s and not skip_reason:
@@ -581,9 +581,9 @@ class Engine:
                 day_rows = self.store.positions_since(self._day_start() - 86400)
                 st = compute_stats(day_rows)
                 await self.notify(
-                    f"🌅 <b>Ringkasan harian</b> ({F.utc_ymd(time.time() - 3600)})\n"
-                    + F.stats_html(st, "24 jam terakhir").split("\n", 1)[1]
-                    + f"\n📄 <code>{path}</code>")
+                    f"<b>Ringkasan harian — {F.utc_ymd(time.time() - 3600)}</b>\n"
+                    + F.stats_html(st, None)
+                    + f"\nLaporan: <code>{F.esc(path)}</code>")
             except asyncio.CancelledError:
                 raise
             except Exception:  # noqa: BLE001
@@ -704,26 +704,6 @@ class Engine:
         }
         base.update(self.status_extra)
         return base
-
-    def books_snapshot(self) -> dict:
-        """Kedalaman book sisi favorit untuk perintah /book."""
-        out = {"connected": self.clob_ws.connected, "sides": {}}
-        if not self.current:
-            return out
-        mkt = self.current
-        for side in ("Up", "Down"):
-            b = self.clob_ws.get_book(mkt.token(side), max_age=3600) \
-                or self.clob.get_cached_book(mkt.token(side))
-            if not b:
-                continue
-            out["sides"][side] = {
-                "best_bid": b.best_bid, "best_ask": b.best_ask, "mid": b.mid,
-                "age": round(time.time() - b.ts, 1),
-                "asks": [(l.price, l.size) for l in b.asks[:3]],
-                "bids": [(l.price, l.size) for l in b.bids[:3]],
-                "last_trade": self.clob_ws.last_trade.get(mkt.token(side)),
-            }
-        return out
 
     def books_snapshot(self) -> dict:
         """Kedalaman book saat ini untuk perintah /book."""

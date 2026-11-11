@@ -70,9 +70,10 @@ class TelegramNotifier:
         self._started = True
         log.info("Telegram aktif: @%s (chat_ids=%s)", me.username,
                  self.chat_ids or "auto-learn")
-        await self.send("🤖 <b>Bot up/down (PAPER) siap</b>\nMode: <b>PAPER</b>"
-                        f"\nSaldo awal ${F.usd(self.cfg.paper.start_balance)}"
-                        f"\nKetik /help untuk perintah.")
+        await self.send(f"<b>Bot aktif</b> · PAPER\n"
+                        f"Polymarket BTC 5m Up/Down\n"
+                        f"Saldo awal {F.usd(self.cfg.paper.start_balance)} USDC\n"
+                        f"/help — daftar perintah")
 
     async def stop(self):
         if self._started and self.app:
@@ -108,8 +109,8 @@ class TelegramNotifier:
     # ── auth ──
     async def _set_menu(self):
         cmds = [
-            BotCommand("status", "Kondisi live round & feed"),
-            BotCommand("book", "Orderbook favorit (WS)"),
+            BotCommand("status", "Round & feed live"),
+            BotCommand("book", "Orderbook (WS)"),
             BotCommand("pnl", "PnL hari ini & total"),
             BotCommand("stats", "Statistik lengkap"),
             BotCommand("trades", "10 trade terakhir"),
@@ -119,10 +120,10 @@ class TelegramNotifier:
             BotCommand("pause", "Hentikan entry baru"),
             BotCommand("resume", "Lanjutkan entry"),
             BotCommand("set", "Ubah parameter runtime"),
-            BotCommand("unset", "Reset parameter ke default"),
-            BotCommand("config", "Lihat konfigurasi"),
+            BotCommand("unset", "Reset parameter"),
+            BotCommand("config", "Config efektif"),
             BotCommand("report", "Laporan harian"),
-            BotCommand("help", "Bantuan"),
+            BotCommand("help", "Daftar perintah"),
         ]
         with contextlib.suppress(Exception):
             await self.app.bot.set_my_commands(cmds)
@@ -171,34 +172,36 @@ class TelegramNotifier:
     async def cmd_start(self, update: "Update", ctx):
         if not self._authorized(update):
             return
+        s = self.cfg.strategy
         await self._reply(update,
-                          "🤖 <b>Polymarket BTC 5m Up/Down — Paper Bot</b>\n"
-                          "Strategi: late-window momentum (90–30s, lead ≥ "
-                          f"{self.cfg.strategy.min_lead_bps}bps, harga efektif ≤ "
-                          f"{self.cfg.strategy.max_eff_price}).\n"
-                          "Semua trade <b>PAPER</b> — tidak ada order sungguhan.\n\n"
-                          "Ketik /help untuk daftar perintah.")
+                          "<b>Polymarket BTC 5m Up/Down — Paper Bot</b>\n\n"
+                          f"Strategi: entry saat sisa waktu {s.window_end_s}–"
+                          f"{s.window_start_s}s, lead ≥ {s.min_lead_bps} bps, "
+                          f"sisi unggul, harga efektif ≤ {s.max_eff_price}.\n"
+                          "Mode PAPER — tidak ada order sungguhan.\n\n"
+                          "/help — daftar perintah")
 
     async def cmd_help(self, update: "Update", ctx):
         if not self._authorized(update):
             return
         await self._reply(update, (
-            "ℹ️ <b>Perintah</b>\n"
-            "/status — kondisi live round saat ini\n"
-            "/book — orderbook favorit (WS real-time)\n"
-            "/pnl — PnL hari ini &amp; total\n"
-            "/stats — statistik lengkap\n"
-            "/trades — 10 trade terakhir\n"
+            "<b>Perintah</b>\n\n"
+            "<i>Pantau</i>\n"
+            "/status — round &amp; feed live\n"
+            "/book — orderbook (WS)\n"
             "/positions — posisi terbuka\n"
             "/rounds — hasil round terakhir\n"
+            "/trades — 10 trade terakhir\n\n"
+            "<i>Performa</i>\n"
+            "/pnl — hari ini &amp; total\n"
+            "/stats — statistik lengkap\n"
             "/equity — saldo &amp; equity\n"
-            "/pause — hentikan entry baru\n"
-            "/resume — lanjutkan\n"
+            "/report — laporan harian (file)\n\n"
+            "<i>Kontrol</i>\n"
+            "/pause · /resume — stop/lanjut entry\n"
             "/set &lt;key&gt; &lt;value&gt; — ubah parameter runtime\n"
-            "  contoh: <code>/set min_lead_bps 6.5</code>\n"
-            "/unset &lt;key&gt; — reset parameter ke default\n"
-            "/config — tampilkan config efektif + key yang bisa diset\n"
-            "/report — laporan harian (markdown)"))
+            "/unset &lt;key&gt; — reset ke default\n"
+            "/config — config efektif + daftar key"))
 
     async def cmd_status(self, update: "Update", ctx):
         if not self._authorized(update):
@@ -225,14 +228,15 @@ class TelegramNotifier:
         allr = self.store.all_closed() if self.store else []
         total = compute_stats(allr, self.store.equity_series() if self.store else None,
                               self.cfg.paper.start_balance)
-        await self._reply(update, (
-            f"💵 <b>PnL</b>\n"
-            f"Hari ini: <b>{F.usd(day['net_pnl'], sign=True)}</b> USDC"
-            f" ({day['n']} trades, WR {day['win_rate']}%)\n"
-            f"Total: <b>{F.usd(total['net_pnl'], sign=True)}</b> USDC"
-            f" ({total['n']} trades, WR {total['win_rate']}%)\n"
-            f"Balance ${F.usd(self.broker.balance)} | Equity "
-            f"${F.usd(self.broker.equity())}"))
+        body = F.kv([
+            ("Hari ini", f"{F.usd(day['net_pnl'], sign=True)} USDC"
+                         f" ({day['n']} trades · WR {day['win_rate']}%)"),
+            ("Total", f"{F.usd(total['net_pnl'], sign=True)} USDC"
+                      f" ({total['n']} trades · WR {total['win_rate']}%)"),
+            ("Balance", F.usd(self.broker.balance)),
+            ("Equity", F.usd(self.broker.equity())),
+        ])
+        await self._reply(update, f"<b>PnL</b>\n{F.code_block(body)}")
 
     async def cmd_stats(self, update: "Update", ctx):
         if not self._authorized(update):
@@ -253,14 +257,17 @@ class TelegramNotifier:
             return
         if not self.broker.open_positions:
             return await self._reply(update, "Tidak ada posisi terbuka.")
-        lines = ["📂 <b>Posisi terbuka</b>"]
+        lines = ["<b>Posisi terbuka</b>"]
         for p in self.broker.open_positions:
             mark = self.broker.marks.get((p.market_slug, p.side))
-            mv = f" | mark {mark:.3f}" if mark else ""
-            lines.append(f"• {p.side} {p.shares:.1f}sh @ {p.avg_price:.3f}"
-                         f" (eff {p.eff_price:.4f}){mv}\n"
-                         f"  <code>{p.market_slug}</code> stake ${F.usd(p.stake_usdc)}"
-                         f" fee ${F.usd(p.fees)}")
+            mv = f" · mark {mark:.3f}" if mark else ""
+            body = F.kv([
+                ("Size", f"{p.shares:.1f} sh @ {p.avg_price:.3f}"
+                         f" (eff {p.eff_price:.4f}){mv}"),
+                ("Stake", f"${F.usd(p.stake_usdc)} · fee ${F.usd(p.fees)}"),
+                ("Round", F.esc(p.market_slug)),
+            ])
+            lines.append(f"{F.arrow(p.side)} <b>{p.side}</b>\n{F.code_block(body)}")
         await self._reply(update, "\n".join(lines))
 
     async def cmd_rounds(self, update: "Update", ctx):
@@ -274,7 +281,7 @@ class TelegramNotifier:
             return
         if self.engine:
             self.engine.set_paused(True)
-        await self._reply(update, "⏸ <b>PAUSED</b> — entry baru dihentikan"
+        await self._reply(update, "<b>PAUSED</b> — entry baru dihentikan"
                                   " (observasi &amp; resolusi tetap jalan).")
 
     async def cmd_resume(self, update: "Update", ctx):
@@ -282,7 +289,7 @@ class TelegramNotifier:
             return
         if self.engine:
             self.engine.set_paused(False)
-        await self._reply(update, "▶️ <b>RESUMED</b> — bot mencari entry lagi.")
+        await self._reply(update, "<b>RESUMED</b> — bot mencari entry lagi.")
 
     async def cmd_set(self, update: "Update", ctx):
         if not self._authorized(update):
@@ -291,32 +298,29 @@ class TelegramNotifier:
         if len(args) != 2:
             return await self._reply(update,
                                      "Pakai: <code>/set &lt;key&gt; &lt;value&gt;</code>\n"
-                                     "Contoh: <code>/set min_lead_bps 6.5</code>, "
-                                     "<code>/set strategy.max_eff_price 0.88</code>, "
-                                     "<code>/set stake_usdc 50</code>")
+                                     "Contoh: <code>/set min_lead_bps 6.5</code>")
         key, val = args[0], args[1]
         ok = save_runtime(self.cfg, key, val)
         if ok:
-            await self._reply(update, f"✅ <b>{key} = {val}</b> diterapkan &amp; disimpan"
-                                      " (data/runtime.json).")
+            await self._reply(update, f"✅ <b>{F.esc(key)} = {F.esc(val)}</b>"
+                                      " — disimpan ke runtime.json")
         else:
-            await self._reply(update, f"❌ key <code>{key}</code> tidak dikenal."
-                                      " Lihat /config untuk daftar.")
+            await self._reply(update, f"Key <code>{F.esc(key)}</code> tidak dikenal"
+                                      " — /config untuk daftar key.")
 
     async def cmd_unset(self, update: "Update", ctx):
         if not self._authorized(update):
             return
         args = ctx.args or []
         if len(args) != 1:
-            return await self._reply(update, "Pakai: <code>/unset &lt;key&gt;</code>\n"
-                                             "Contoh: <code>/unset min_lead_bps</code>")
+            return await self._reply(update, "Pakai: <code>/unset &lt;key&gt;</code>")
         key = args[0]
         ok = unset_runtime(self.cfg, key)
         if ok:
-            await self._reply(update, f"♻️ <b>{key}</b> direset ke default.")
+            await self._reply(update, f"♻ <b>{F.esc(key)}</b> direset ke default.")
         else:
-            await self._reply(update, f"❌ key <code>{key}</code> tidak dikenal / "
-                                      "tidak ada override.")
+            await self._reply(update, f"Key <code>{F.esc(key)}</code> tidak dikenal"
+                                      " / tidak ada override.")
 
     async def cmd_config(self, update: "Update", ctx):
         if not self._authorized(update):
@@ -331,7 +335,7 @@ class TelegramNotifier:
             return
         if self.engine:
             path = self.engine.write_daily_report()
-            await self._reply(update, f"📄 Laporan harian: <code>{path}</code>")
+            await self._reply(update, f"Laporan harian: <code>{F.esc(path)}</code>")
             with contextlib.suppress(Exception):
                 await update.effective_message.reply_document(open(path, "rb"))
         else:
@@ -341,8 +345,9 @@ class TelegramNotifier:
         if not self._authorized(update):
             return
         b = self.broker
-        await self._reply(update, (
-            f"💰 Balance: <b>${F.usd(b.balance)}</b>\n"
-            f"📈 Equity: <b>${F.usd(b.equity())}</b>"
-            f" (open value ${F.usd(b.equity() - b.balance)})\n"
-            f"🧾 Closed trades: {b.closed_count} | streak: {b.loss_streak}L"))
+        body = F.kv([
+            ("Balance", F.usd(b.balance)),
+            ("Equity", f"{F.usd(b.equity())} (open {F.usd(b.equity() - b.balance)})"),
+            ("Trades", f"{b.closed_count} closed · streak {b.loss_streak}L"),
+        ])
+        await self._reply(update, f"<b>Equity</b>\n{F.code_block(body)}")

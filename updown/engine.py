@@ -198,9 +198,9 @@ class Engine:
             if ptb:
                 mkt.ptb, mkt.ptb_source = ptb, ptb_src
                 if ptb_warn:
-                    log.warning("PTB %s: %s", mkt.slug, ptb_warn)
-                    await self.notify(F.error_html(
-                        f"PTB {mkt.slug}: {ptb_warn} (dipakai {ptb:,.2f})"))
+                    # quirk umum API Polymarket (openPrice telat/basi) dan sudah
+                    # ditangani otomatis — cukup log, jangan spam Telegram.
+                    log.warning("PTB %s: %s (dipakai %.2f)", mkt.slug, ptb_warn, ptb)
                 s = self.chainlink.cached(start_ts)
                 if s and s.close_price:
                     self._calibrate(s.close_price, s.ts_ms)
@@ -231,8 +231,9 @@ class Engine:
             if winner:
                 await self._settle(mkt, winner, src, close_cl, traded)
             else:
-                await self.alert(f"Resolusi {slug} tertunda — background resolver"
-                                 " akan menyelesaikan.")
+                # background resolver mengirim notifikasi WIN/LOSS saat settle —
+                # tidak perlu alert ke Telegram di sini.
+                log.info("Resolusi %s tertunda — background resolver", slug)
             self.broker.on_round_end()
             self._snapshot_equity()
             self.rounds_done += 1

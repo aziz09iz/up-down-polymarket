@@ -44,12 +44,15 @@ def hist_point_at(points: list, ts: float, lo: float = -5.0,
 
 
 def choose_ptb(open_price: Optional[float], hist_open: Optional[float],
-               live_ref: Optional[float], tol_bps: float = 5.0):
+               live_ref: Optional[float], tol_bps: float = 5.0,
+               prev_open: Optional[float] = None):
     """Pick the price-to-beat from two Chainlink sources.
 
     openPrice (crypto-price) adalah sumber UI/produksi; first point
     price-history adalah cross-check. Jika beda > tol_bps, pilih yang lebih
-    dekat ke harga Chainlink live di awal round (sanity). Returns
+    dekat ke harga Chainlink live di awal round (sanity). `prev_open` =
+    openPrice round sebelumnya: jika nilainya identik (API membeku/basi)
+    dan tidak cocok dengan history, openPrice diabaikan. Returns
     (ptb, source, warning).
     """
     if open_price and hist_open:
@@ -58,6 +61,9 @@ def choose_ptb(open_price: Optional[float], hist_open: Optional[float],
             return open_price, "chainlink", ""
         warn = (f"PTB antar sumber beda {diff_bps:.1f}bps: openPrice={open_price:.2f} "
                 f"vs price-history={hist_open:.2f}")
+        if prev_open is not None and open_price == prev_open:
+            return hist_open, "chainlink_hist", \
+                warn + " → openPrice basi (identik round sebelumnya), pakai price-history"
         if live_ref:
             if abs(hist_open - live_ref) < abs(open_price - live_ref):
                 return hist_open, "chainlink_hist", warn + " → pakai price-history"
@@ -78,6 +84,7 @@ class ChainlinkFeed:
         self._cache: dict = {}          # start_ts -> Chainlink
         self._last_fetch = 0.0
         self._cooldown_until = 0.0
+        self._prev_round_open: Optional[float] = None   # deteksi openPrice basi
 
     def cached(self, start_ts: float) -> Optional[Chainlink]:
         return self._cache.get(int(start_ts))
@@ -159,14 +166,23 @@ class ChainlinkFeed:
                 await asyncio.sleep(self.hard_gap + 2.0)
                 hist = await self.fetch_history(start_ts, max_age=2.0)
             hist_open = hist_point_at(hist, start_ts)
+            # live_ref: pakai closePrice payload HANYA jika segar (≤120s) — payload
+            # basi punya closePrice basi juga dan akan membajak sanity check.
             live_ref = None
-            if sample and sample.close_price:
+            fresh_close = bool(sample and sample.close_price and
+                               abs(time.time() * 1000 - sample.ts_ms) <= 120_000)
+            if fresh_close:
                 live_ref = sample.close_price
             elif live_ref_fn:
                 live_ref = live_ref_fn()
+            elif sample and sample.close_price:
+                live_ref = sample.close_price
             ptb, src, warn = choose_ptb(
-                sample.open_price if sample else None, hist_open, live_ref)
+                sample.open_price if sample else None, hist_open, live_ref,
+                prev_open=self._prev_round_open)
             if ptb:
+                if sample and sample.open_price:
+                    self._prev_round_open = sample.open_price
                 return ptb, src, warn
             await asyncio.sleep(max(interval, self.hard_gap + 0.5))
         return ptb, src, warn

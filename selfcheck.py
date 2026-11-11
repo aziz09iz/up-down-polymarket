@@ -308,6 +308,12 @@ def test_chainlink_helpers():
     p, src, w = choose_ptb(72880.63, 72985.9, 72880.0)
     check("beda, live dekat openPrice → chainlink",
           src == "chainlink" and p == 72880.63 and w, f"{src} {p}")
+    p, src, w = choose_ptb(73796.06, 73672.81, 73790.0, prev_open=73796.06)
+    check("openPrice basi (identik round lalu) → hist walau live dekat open",
+          src == "chainlink_hist" and p == 73672.81 and "basi" in w, f"{src} {p} {w}")
+    p, src, w = choose_ptb(72880.63, 72985.9, 72880.0, prev_open=72111.11)
+    check("prev_open beda → aturan lama tetap jalan",
+          src == "chainlink" and p == 72880.63, f"{src} {p}")
     p, src, w = choose_ptb(72880.63, None, None)
     check("hanya openPrice", src == "chainlink" and p == 72880.63)
     p, src, w = choose_ptb(None, 72985.9, None)

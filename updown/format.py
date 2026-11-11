@@ -227,31 +227,35 @@ def stats_html(st: dict, title: Optional[str]) -> str:
 
 
 def config_html(cfg, overrides: dict, settables: list | None = None) -> str:
+    import textwrap
     s, e, r = cfg.strategy, cfg.execution, cfg.risk
     lines = [
         "<b>Config efektif</b>",
         "<pre>",
         f"window      : {s.window_start_s}s → {s.window_end_s}s",
-        f"min_lead    : {s.min_lead_bps} bps (stabil {s.lead_stable_s}s)",
-        f"max_eff     : {s.max_eff_price}  (max_ask {s.max_ask})",
+        f"min_lead    : {s.min_lead_bps:g} bps (stabil {s.lead_stable_s:g}s)",
+        f"max_eff     : {s.max_eff_price:.2f}  (max_ask {s.max_ask:.2f})",
+        f"flip_exit   : {s.flip_exit_bps:g} bps (0 = hold to maturity)",
         f"side_agree  : on (arah lead harus = favorit pasar)",
-        f"fee_rate    : {cfg.market.fee_rate}  vol_filter: {s.use_vol_filter}",
-        f"stake       : {e.stake_mode} {e.stake_usdc if e.stake_mode=='fixed' else str(e.stake_pct)+'%'}"
-        f" (max {e.max_stake_usdc})",
+        f"fee_rate    : {cfg.market.fee_rate:g}  vol_filter: {s.use_vol_filter}",
+        f"stake       : {e.stake_mode} {e.stake_usdc:g}"
+        f" (max {e.max_stake_usdc:g})",
         f"slippage    : adv {e.adverse_move_prob:.0%}×{e.adverse_move_ticks}tick"
         f" part {e.participation:.0%} lat {e.latency_ms}ms",
-        f"risk        : daily -{r.daily_loss_limit_usdc} | streak {r.loss_streak_pause}"
-        f"→pause {r.pause_rounds}",
+        f"risk        : daily -{r.daily_loss_limit_usdc:g}"
+        f" | streak {r.loss_streak_pause}→pause {r.pause_rounds}",
         f"feeds       : spot {cfg.feeds.spot_primary}"
-        f"+{cfg.feeds.spot_secondary or '∅'} | CL poll {cfg.feeds.chainlink_poll_sec}s",
+        f"+{cfg.feeds.spot_secondary or '∅'} | CL poll {cfg.feeds.chainlink_poll_sec:g}s",
         "</pre>",
     ]
     if overrides:
         lines.append("Runtime override: " + ", ".join(
             f"<code>{esc(k)}={esc(v)}</code>" for k, v in overrides.items()))
     if settables:
-        lines.append("Key tersedia: " + ", ".join(
-            f"<code>{esc(k)}</code>" for k in settables))
+        keyline = ", ".join(settables)
+        wrapped = textwrap.wrap(keyline, width=66, break_long_words=False,
+                                break_on_hyphens=False)
+        lines.append("<pre>Key tersedia (/set):\n" + "\n".join(wrapped) + "</pre>")
     lines.append("Ubah: <code>/set min_lead_bps 6.5</code> · reset: "
                  "<code>/unset min_lead_bps</code>")
     return "\n".join(lines)

@@ -32,7 +32,7 @@ import sys
 import time
 from pathlib import Path
 
-from updown.chainlink import ChainlinkFeed
+from updown.chainlink import ChainlinkFeed, choose_ptb, hist_point_at
 from updown.config import load
 from updown.polymarket import ApiError, ClobClient, GammaClient, Http
 from updown.stats import compute_stats, format_stats_md
@@ -109,6 +109,19 @@ async def fetch_round(gamma: GammaClient, clob: ClobClient, cl: ChainlinkFeed,
             path = data
     out["path"] = path
 
+    # PTB cross-validated — sama dengan bot live: openPrice bisa basi, maka
+    # cross-check dengan titik pertama price-history.
+    if isinstance(path, list):
+        hist_open = hist_point_at(path, start)
+        if hist_open:
+            ptb, p_src, _ = choose_ptb(sample.open_price, hist_open, None)
+            out["ptb"] = ptb
+            out["ptb_source"] = p_src
+        else:
+            out["ptb_source"] = "chainlink"
+    else:
+        out["ptb_source"] = "chainlink"
+
     # token price history (CLOB, lenient) for entry-ask proxy — BOTH sides,
     # the side is chosen later from the lead (no lookahead).
     hist = {}
@@ -159,9 +172,17 @@ def simulate(r: dict, a) -> dict | None:
     if abs(lead) < a.min_lead:
         return {"skipped": "lead", "lead": lead}
     side = "Up" if lead > 0 else "Down"
-    p_tok = pick_hist_point((r.get("hist") or {}).get(side), entry_ts, lo - 30, hi + 30)
-    if p_tok is None:
+    hist = r.get("hist") or {}
+    p_up = pick_hist_point(hist.get("Up"), entry_ts, lo - 30, hi + 30)
+    p_dn = pick_hist_point(hist.get("Down"), entry_ts, lo - 30, hi + 30)
+    if p_up is None or p_dn is None:
         return {"skipped": "no_token_hist", "lead": lead}
+    # side_agree (sama seperti live): arah lead harus = favorit pasar
+    # (favorit = token dengan harga >= 0.5). Kalau beda, skip — jangan beli underdog.
+    market_fav = "Up" if p_up >= p_dn else "Down"
+    if side != market_fav:
+        return {"skipped": "side_agree", "lead": lead}
+    p_tok = p_up if side == "Up" else p_dn
     tick = 0.01
     ask = min(0.99, round(p_tok + tick / 2 + a.slippage_ticks * tick, 3))
     if ask > a.max_ask:

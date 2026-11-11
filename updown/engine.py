@@ -342,7 +342,8 @@ class Engine:
                         if p.market_slug == mkt.slug), None)
             if pos and self.strategy.should_flip_exit(pos.side, lead, t_left):
                 signed = lead if pos.side == "Up" else -lead
-                book = books.get(pos.side)
+                # refresh buku sisi POSISI (WS fresh), fallback buku terakhir
+                book = await take_book(pos.side) or books.get(pos.side)
                 if book and book.bids and \
                         self.broker.market_sell(pos, book, "flip_exit"):
                     await self.notify(
@@ -351,6 +352,9 @@ class Engine:
                         f" (batas -{s.flip_exit_bps}) · t-{t_left:.0f}s\n"
                         f"PnL {F.usd(pos.pnl_net, sign=True)} USDC")
                     log.info("flip exit %s pnl=%.2f", mkt.slug, pos.pnl_net)
+                elif not book or not book.bids:
+                    log.warning("flip exit %s ditahan: buku sisi %s kosong",
+                                mkt.slug, pos.side)
 
             # ── entry evaluation ──
             if in_win and not traded and fav:

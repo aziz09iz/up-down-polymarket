@@ -109,12 +109,20 @@ class ClobWs:
         self.events = 0
         self._task: Optional[asyncio.Task] = None
         self._ping_task: Optional[asyncio.Task] = None
+        self._ws = None          # koneksi aktif (untuk update subscribe in-place)
         self._stopping = False
 
     # ── lifecycle ──
     async def resubscribe(self, assets: list):
         assets = [str(a) for a in assets]
-        if self.connected and set(assets) == set(self.assets):
+        if self.connected and self._ws is not None:
+            # Langganan baru di koneksi yang sama — TANPA putus/reconnect.
+            # Reconnect tiap round mengosongkan buku (self.books={}) dan membuat
+            # sisi favorit sering "tidak tersedia" di awal round.
+            self.assets = assets
+            with contextlib.suppress(Exception):
+                await self._ws.send_str(json.dumps(
+                    {"type": "market", "assets_ids": assets}))
             return
         await self.stop()
         self.assets = assets
@@ -142,10 +150,11 @@ class ClobWs:
                 async with aiohttp.ClientSession() as sess:
                     async with sess.ws_connect(
                             WS_URL, heartbeat=25, max_msg_size=16 * 1024 * 1024,
-                            timeout=aiohttp.ClientWSTimeout(ws_receive=20)) as ws:
+                            timeout=aiohttp.ClientWSTimeout(ws_receive=30)) as ws:
                         await ws.send_str(json.dumps(
                             {"type": "market", "assets_ids": self.assets}))
                         self.connected = True
+                        self._ws = ws
                         backoff = 1.0
                         log.info("CLOB WS connected (%d assets)", len(self.assets))
                         self._ping_task = asyncio.create_task(self._pinger(ws))
@@ -167,6 +176,7 @@ class ClobWs:
                                     log.warning("CLOB WS closed (%s)", msg.type)
                                     break
                         finally:
+                            self._ws = None
                             if self._ping_task:
                                 self._ping_task.cancel()
             except asyncio.CancelledError:

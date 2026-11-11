@@ -337,22 +337,20 @@ class Engine:
                     self._calibrate(sample.close_price, sample.ts_ms)
                 calib_idx += 1
 
-            # ── flip-exit (optional early exit) ──
-            if s.flip_exit_bps > 0 and 10 <= t_left <= s.window_start_s + 30:
-                pos = next((p for p in self.broker.open_positions
-                            if p.market_slug == mkt.slug), None)
-                if pos and lead is not None:
-                    signed = lead if pos.side == "Up" else -lead
-                    if signed <= -s.flip_exit_bps:
-                        book = books.get(pos.side)
-                        if book and book.bids and \
-                                self.broker.market_sell(pos, book, "flip_exit"):
-                            await self.notify(
-                                f"➖ <b>FLIP EXIT {F.esc(pos.side)}</b>\n"
-                                f"Lead berbalik {signed:+.1f} bps"
-                                f" (batas -{s.flip_exit_bps}) · t-{t_left:.0f}s\n"
-                                f"PnL {F.usd(pos.pnl_net, sign=True)} USDC")
-                            log.info("flip exit %s pnl=%.2f", mkt.slug, pos.pnl_net)
+            # ── flip exit: jual early jika lead berbalik melawan posisi ──
+            pos = next((p for p in self.broker.open_positions
+                        if p.market_slug == mkt.slug), None)
+            if pos and self.strategy.should_flip_exit(pos.side, lead, t_left):
+                signed = lead if pos.side == "Up" else -lead
+                book = books.get(pos.side)
+                if book and book.bids and \
+                        self.broker.market_sell(pos, book, "flip_exit"):
+                    await self.notify(
+                        f"➖ <b>FLIP EXIT {F.esc(pos.side)}</b>\n"
+                        f"Lead berbalik {signed:+.1f} bps"
+                        f" (batas -{s.flip_exit_bps}) · t-{t_left:.0f}s\n"
+                        f"PnL {F.usd(pos.pnl_net, sign=True)} USDC")
+                    log.info("flip exit %s pnl=%.2f", mkt.slug, pos.pnl_net)
 
             # ── entry evaluation ──
             if in_win and not traded and fav:

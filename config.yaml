@@ -42,7 +42,8 @@ strategy:
   vol_min_bps_sqrt_s: 0.30
   vol_max_bps_sqrt_s: 3.00
   min_edge: 0.005              # p_model - eff_price minimal (jika use_vol_filter)
-  flip_exit_bps: 0             # >0 = jual early jika lead balik <= -X bps; 0 = hold to maturity
+  flip_exit_bps: 7.0           # jual early jika lead balik ≤ −X bps melawan posisi;
+                               # 0 = hold to maturity (simetris dengan min_lead_bps)
 
 execution:
   latency_ms: 300              # simulasi latensi order

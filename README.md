@@ -16,14 +16,14 @@ harian **Markdown**, dan **backtester** berbasis data riil.
 | Area | Detail |
 |---|---|
 | 📡 Data live | Chainlink PTB via API Polymarket, **orderbook via CLOB WebSocket** (fallback REST), spot BTC via Binance WS (fallback REST; Bybit/Coinbase/OKX) |
-| 🧠 Strategi | Aturan late-window sesuai spec (lihat bawah) + guard realisme (stabilitas lead, spread, depth, divergence antar sumber, filter EV opsional) |
+| 🧠 Strategi | Aturan late-window sesuai spec (lihat bawah) + guard `side_agree` (arah lead harus = favorit pasar), flip exit, dan guard realisme opsional (stabilitas lead, spread, depth, divergence antar sumber, filter EV) |
 | 💵 Eksekusi paper | Fee resmi Polymarket `shares × 0.07 × p × (1−p)`, book-walk + participation cap, adverse-move latency model, minimum order 5 shares |
 | 🏁 Resolusi | Otomatis dari Chainlink (`close ≥ open → Up`) dan/atau Gamma (`outcomePrices`), background resolver bila tertunda |
 | 📲 Telegram | Notifikasi entry/fill/resolusi/error (HTML) + perintah `/status /pnl /trades /pause /set …` |
 | 📊 Persistensi | SQLite (posisi, round, equity) + laporan harian Markdown di `data/reports/` |
 | 🛡 Risk | Daily loss limit, pause setelah loss-streak, max 1 posisi, stake tetap / % equity |
 | 🔁 Backtest | `backtest.py` mereplay round historis riil (harga Chainlink + harga token CLOB) |
-| ✅ Self-check | `selfcheck.py` — 58 test offline (fee vs tabel docs, fill sim, aturan strategi, broker, store) |
+| ✅ Self-check | `selfcheck.py` — 92 test offline (fee vs tabel docs, fill sim, aturan strategi, flip exit, broker, store) |
 
 ---
 
@@ -39,14 +39,24 @@ Entry **hanya** di window sisa waktu **90 → 30 detik**, beli sisi yang unggul:
 3. **Harga tiket favorit (setelah fee)** — `ask + fee_per_share ≤ max_eff_price` (default **0.90**)
    - contoh nyata: ask `0.87` → fee/sh `0.07×0.87×0.13 = 0.0079` → eff `0.8779` ✅
    - ask `0.90` → eff `0.9063` ❌ (lewat cap) — break-even win-rate ≈ 90.6%
-4. **Beli sisi unggul** (Up jika spot > PTB, sebaliknya Down), hold sampai resolusi
+4. **Beli sisi unggul** (Up jika spot > PTB, sebaliknya Down) **dan harus searah
+   favorit pasar** (`side_agree`: mid Up ≥ mid Down → hanya boleh beli Up).
+   Jika arah lead ≠ favorit pasar, round di-skip — bot tidak pernah membeli
+   underdog murah.
 
-Guard tambahan (bisa dimatikan via config):
-- **Stabilitas lead** ≥ `lead_stable_s` (default 4 detik) — hindari masuk saat lead baru flicker
-- **Kualitas book** — spread ≤ 3 tick, depth ask ≤ max_ask ≥ 150 shares
-- **Kesehatan feed** — spot age ≤ 3s; umur orderbook ≤ 6s; opsional divergence
-  antar sumber exchange (default off — Binance BTCUSDT vs Coinbase BTC-USD wajar
-  berbeda > 10 bps karena produknya beda)
+**Flip exit** (default **7 bps**, cermin aturan entry): setelah posisi terbuka,
+jika lead berbalik ≥ `flip_exit_bps` melawan posisi (misal posisi Up, lead jadi
+−7 bps), tiket dijual early alih-alih hold sampai resolusi — memotong loss penuh
+saat momentum batal. Jendela exit `10s ≤ t_left ≤ window_start + 30s` (terlalu
+mepet resolusi: book tipis, harga hampir final). Set `0` untuk hold-to-maturity.
+
+Guard tambahan (opsional, default off kecuali disebut):
+- **Stabilitas lead** ≥ `lead_stable_s` (default **0 = off**) — hindari masuk saat lead baru flicker
+- **Kualitas book** — `max_spread_ticks` / `min_book_shares` (default 0 = off)
+- **Kesehatan feed** — spot age ≤ 3s; umur orderbook ≤ `book_max_age_s` (10s,
+  WS realtime biasanya ~0s); opsional divergence antar sumber exchange
+  (default off — Binance BTCUSDT vs Coinbase BTC-USD wajar berbeda > 10 bps
+  karena produknya beda)
 - **EV filter opsional** (`use_vol_filter`, default off) — estimasi probabilitas model
   Brownian `p = Φ(lead / (σ·√t_left))` dengan σ real-time dari tick exchange;
   entry hanya jika `p − eff_price ≥ min_edge`
@@ -59,9 +69,12 @@ Polymarket), dan mengkalibrasi feed cepat exchange terhadap Chainlink
 **PTB cross-validation.** PTB diambil dari dua sumber dan saling dicek:
 `crypto-price.openPrice` (sumber UI) vs titik pertama `price-history` pada
 `timestamp == start`. Jika selisih > 5 bps, dipakai yang lebih dekat ke harga
-Chainlink live saat round buka, dan bot mengirim alert (di lingkungan tertentu
-`openPrice` bisa basi — mekanisme ini menjaganya). Sumber yang dipakai dicatat
-per round (`ptb_source`: `chainlink` / `chainlink_hist` / `spot_fallback`).
+live yang **segar**. `openPrice` di lingkungan tertentu bisa basi (beku, nilai
+identik antar round) — jika terdeteksi identik dengan round sebelumnya, bot
+langsung pakai `price-history`. Semua kejadian ini dicatat di `bot.log`
+(`ptb_source` per round: `chainlink` / `chainlink_hist` / `spot_fallback`);
+hanya kegagalan total (tidak ada PTB sama sekali) yang dikirim sebagai alert
+Telegram.
 
 ---
 
@@ -77,9 +90,9 @@ per round (`ptb_source`: `chainlink` / `chainlink_hist` / `spot_fallback`).
   polymarket.py   chainlink.py    spot.py        strategy.py        paper.py
   Gamma: event    crypto-price    Binance WS     aturan 90–30s,     broker paper:
   slug/tokens/    (PTB + close,   bookTicker +   lead ≥ 7bps,       book-walk, fee
-  outcome; CLOB:  completed)      REST fallback  eff ≤ 0.90, dll    0.07·p·(1−p),
-  /book /fee-rate                 + kalibrasi    (EV opsional)      slippage, latensi
-  /prices-history                 offset Chainlink                    │
+  outcome; CLOB:  completed)      REST fallback  eff ≤ 0.90,        0.07·p·(1−p),
+  /book /fee-rate                 + kalibrasi    side_agree,        slippage, latensi
+  /prices-history                 offset Chainlink  flip exit          │
         │                                                            ▼
         ▼                                                       store.py (SQLite)
   data-api publik Polymarket                                    stats.py, format.py
@@ -138,7 +151,7 @@ copy .env.example .env        # Linux/macOS: cp .env.example .env
 # isi TELEGRAM_BOT_TOKEN (dari @BotFather) dan TELEGRAM_CHAT_IDS (id chat kamu)
 # kosongkan keduanya → bot tetap jalan headless (notifikasi ke log)
 
-# 3. Verifikasi offline (80 test, tanpa jaringan)
+# 3. Verifikasi offline (92 test, tanpa jaringan)
 python selfcheck.py
 
 # 4. Jalankan
@@ -157,14 +170,18 @@ atau biarkan kosong — chat pertama yang mengirim `/start` otomatis didaftarkan
 
 ## 📲 Telegram
 
-**Notifikasi (HTML):**
+**Notifikasi (HTML):** header satu baris + blok data rata kolom (monospace),
+tanpa emoji per-baris.
 
-- 🟢/🔴 **ENTRY** — sisi, t_left, lead bps (+ durasi stabil), PTB → live,
-  ask → harga efektif, fee/sh, shares, stake, slippage, saldo
-- 🏁 **RESOLVED** — win/loss, PTB → close (bps), payout, PnL net
-  (fee & slippage dirinci), statistik hari ini + kumulatif
-- ⚠️ **Alert** — PTB gagal (fallback spot), resolusi tertunda, feed mati, error
-- 🌅 **Ringkasan harian** (default 00:00 UTC) + file Markdown
+- ▲/▼ **ENTRY** — sisi, sisa waktu, lead bps, PTB → live, ask → harga efektif,
+  fill, stake + fee/slip, saldo
+- ✅/❌ **WIN / LOSS** (➖ **EXIT** untuk flip exit) — PTB → close (bps),
+  payout, PnL net (fee & slippage dirinci), statistik hari ini + kumulatif
+- ➖ **FLIP EXIT** — lead berbalik melawan posisi, dijual early
+- ⚠ **Alert** — hanya masalah serius: PTB gagal total (fallback spot), round
+  di-skip tanpa data, stake terlalu kecil untuk min order, error.
+  (Warning rutin seperti fallback PTB / resolusi tertunda → `bot.log` saja)
+- **Ringkasan harian** (default 00:00 UTC) + file Markdown
 
 **Perintah:**
 
@@ -200,12 +217,12 @@ Parameter strategi utama:
 |---|---|---|
 | `strategy.window_start_s` / `window_end_s` | 90 / 30 | batas window entry (detik tersisa) |
 | `strategy.min_lead_bps` | 7.0 | lead minimum (spec: 6–8) |
-| `strategy.lead_stable_s` | 4 | lead harus stabil selama N detik |
+| `strategy.flip_exit_bps` | 7.0 | jual early jika lead balik ≤ −X bps melawan posisi (0 = hold to maturity) |
+| `strategy.lead_stable_s` | 0 (off) | lead harus stabil selama N detik |
 | `strategy.max_eff_price` | 0.90 | cap harga **setelah fee** |
 | `strategy.max_ask` | 0.90 | cap ask mentah |
 | `strategy.use_vol_filter` | false | filter EV Brownian opsional |
-| `strategy.flip_exit_bps` | 0 | >0 = jual early jika lead balik ≤ −X bps (0 = hold to maturity) |
-| `execution.stake_usdc` / `stake_mode` | 25 / fixed | ukuran posisi (`equity_pct` = % equity) |
+| `execution.stake_usdc` / `stake_mode` | 5 / fixed | ukuran posisi — **minimal ~4.50** agar min order 5 share favorit terisi (`equity_pct` = % equity) |
 | `risk.daily_loss_limit_usdc` | 150 | stop harian |
 | `risk.loss_streak_pause` / `pause_rounds` | 4 / 6 | pause setelah loss beruntun |
 
@@ -228,6 +245,9 @@ fee & slippage-ticks yang sama. Hasil: ringkasan statistik + CSV di
 **Keterbatasan (jujur):**
 - `prices-history` CLOB fidelity ~1 menit dan bersifat mid-ish → harga entry
   adalah **proksi** (ditambah `--slippage-ticks`, default 1 tick + half-spread).
+- **Flip exit tidak dimodelkan** — backtest hold-to-maturity, jadi hasil live
+  dengan `flip_exit_bps > 0` bisa berbeda (umumnya loss per trade lebih kecil,
+  win rate sedikit lebih rendah).
 - Stabilitas lead (`lead_stable_s`) tak bisa diverifikasi dari data historis →
   backtest bisa sedikit **lebih optimis** daripada live.
 - API situs rate-limited: ±13 detik per round baru (cache membantu).
@@ -240,12 +260,14 @@ fee & slippage-ticks yang sama. Hasil: ringkasan statistik + CSV di
 up-down-beta/
 ├── main.py               # entrypoint bot live (paper)
 ├── backtest.py           # backtest data riil
-├── selfcheck.py          # 58 test offline
+├── selfcheck.py          # 92 test offline
 ├── config.yaml           # semua parameter
 ├── .env.example          # secrets (Telegram)
+├── deploy/
+│   └── updown-bot.service  # unit systemd utk VPS
 ├── updown/
 │   ├── engine.py         # orkestrator round (concurrent per round)
-│   ├── strategy.py       # aturan late-window + EV opsional
+│   ├── strategy.py       # aturan late-window + side_agree + flip exit
 │   ├── paper.py          # broker paper: fee/slippage/latensi/book-walk
 │   ├── polymarket.py     # klien Gamma + CLOB (throttle/retry per host)
 │   ├── chainlink.py      # PTB & harga Chainlink (crypto-price, anti-429)
@@ -261,13 +283,13 @@ up-down-beta/
 
 ---
 
-## 🖥 Deploy di VPS (Linux)
+## 🖥 Deploy di VPS (Linux, systemd)
 
 WebSocket keluar (port 443) harus dibuka oleh firewall. Pastikan **jam sistem
 tersinkron** (`systemd-timesyncd` / `chrony`) — timing window bergantung jam
 yang benar (bot juga menyinkronkan ke clock server CLOB).
 
-### Opsi A — systemd (bare-metal)
+### Install
 
 ```bash
 # 1. Dependensi & user khusus
@@ -285,7 +307,7 @@ sudo -u updown .venv/bin/pip install -r requirements.txt
 
 # 4. Konfigurasi
 sudo -u updown cp .env.example .env
-sudo -u updown nano .env          # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_IDS
+sudo -u updown nano .env          # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_IDS, STAKE_USDC
 
 # 5. Verifikasi
 sudo -u updown .venv/bin/python selfcheck.py
@@ -294,17 +316,22 @@ sudo -u updown .venv/bin/python selfcheck.py
 sudo cp deploy/updown-bot.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now updown-bot
-sudo journalctl -u updown-bot -f      # lihat log
 ```
 
-### Opsi B — Docker
+### Operasional (systemctl)
 
 ```bash
-cd /opt && git clone https://github.com/aziz09iz/up-down-polymarket
-cd up-down-polymarket
-cp .env.example .env && nano .env
-docker compose up -d --build
-docker compose logs -f
+sudo systemctl status updown-bot          # cek status service
+sudo systemctl restart updown-bot         # restart
+sudo systemctl stop updown-bot            # stop
+sudo journalctl -u updown-bot -f          # log live (jurnal systemd)
+tail -f /opt/up-down-polymarket/data/logs/bot.log   # log aplikasi
+
+# update ke commit terbaru
+cd /opt/up-down-polymarket
+sudo -u updown git pull
+sudo -u updown .venv/bin/pip install -r requirements.txt   # bila deps berubah
+sudo systemctl restart updown-bot
 ```
 
 ### Catatan feed di VPS
@@ -326,8 +353,9 @@ docker compose logs -f
 | `429 from polymarket.com` | API situs rate-limited (jangan dipolling cepat) | Bot sudah backoff + jeda ≥6s/call; jangan jalankan backtest berbarengan dengan bot live |
 | Skip `book: orderbook sisi favorit tidak tersedia` | Sisi ask book kosong/tipis (likuiditas sepi) | Normal — bot memang tak bisa jadi taker tanpa ask; tunggu round lebih ramai |
 | Skip `book_fresh` | Fetch book gagal beberapa detik | Periksa koneksi ke `clob.polymarket.com` |
-| `Resolusi … tertunda` | Gamma/Chainlink belum mempublikasikan hasil | Background resolver + final sweep menyelesaikannya (hingga ~4 menit setelah stop; sisanya di start berikutnya) |
-| PTB alert `sumber beda Xbps` | `openPrice` basi vs `price-history` | Bot otomatis pilih yang konsisten; hanya informational |
+| `Resolusi … tertunda` (di log) | Gamma/Chainlink belum mempublikasikan hasil | Normal — background resolver menyelesaikan & mengirim WIN/LOSS kemudian (hingga ~4 menit setelah stop; sisanya di start berikutnya) |
+| Warning PTB `sumber beda Xbps` (di log) | `openPrice` basi/telat vs `price-history` | Bot otomatis pilih sumber yang benar (deteksi basi: nilai identik antar round); tidak dikirim ke Telegram |
+| Posisi ditutup `➖ FLIP EXIT` | Lead berbalik ≥ `flip_exit_bps` melawan posisi | Perilaku normal strategi; matikan dengan `/set flip_exit_bps 0` |
 | Tidak ada entry sama sekali | Lead tak pernah ≥ threshold / harga favorit selalu > cap | Cek `/rounds` (alasan skip per round), longgarkan via `/set min_lead_bps 6` atau `/set strategy.max_eff_price 0.92` |
 
 ---

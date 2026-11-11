@@ -7,7 +7,9 @@ Spec (user):
       1. t_left ≤ 90s (dan ≥ 30s)
       2. |lead| = |spot − price_to_beat| / PTB ≥ 6–8 bps
       3. harga tiket favorit (setelah fee) masih < 0.88–0.90
-      4. beli sisi yang unggul
+      4. beli sisi yang unggul (harus searah favorit pasar — side_agree)
+  • Flip exit: jual sebelum resolusi jika lead berbalik ≥ flip_exit_bps
+    melawan posisi (cermin aturan entry: masuk di +X, keluar di −X).
 Plus guard realism: lead harus stabil beberapa detik, spread/depth book
 masuk akal, feed sehat (fresh + divergence antar sumber), dan filter EV
 opsional berbasis model Brownian (default off).
@@ -67,6 +69,23 @@ class LateWindowStrategy:
         if self._lead_ok_since is None:
             return 0.0
         return now - self._lead_ok_since
+
+    # ── flip exit: jual early jika lead berbalik melawan posisi ──
+    def should_flip_exit(self, side: str, lead_bps: Optional[float],
+                         t_left: float) -> bool:
+        """True jika posisi `side` harus ditutup awal karena lead berbalik.
+
+        Cermin aturan entry: masuk di lead +X bps, keluar di lead −X bps
+        (flip_exit_bps). Jendela exit: 10s ≤ t_left ≤ window_start + 30s —
+        terlalu mepet resolusi book tipis dan harga sudah hampir final.
+        """
+        c = self.cfg.strategy
+        if c.flip_exit_bps <= 0 or lead_bps is None:
+            return False
+        if not (10.0 <= t_left <= c.window_start_s + 30.0):
+            return False
+        signed = lead_bps if side == "Up" else -lead_bps
+        return signed <= -c.flip_exit_bps
 
     # ── full evaluation on each book refresh inside the window ──
     def evaluate(self, *, t_left: float, ptb: Optional[float],

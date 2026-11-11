@@ -204,6 +204,24 @@ def test_strategy():
     check("vol tinggi (3bps/√s) + EV filter → skip", not d8.ok,
           str(d8.failed_rules()))
     cfg.strategy.use_vol_filter = False
+    # flip exit (default on 7 bps — cermin aturan entry: masuk +X, keluar −X)
+    fx = LateWindowStrategy(mkcfg())
+    check("flip exit: Up, lead -8bps, t-60s → exit",
+          fx.should_flip_exit("Up", -8.0, 60))
+    check("flip exit: Up, lead +8bps → hold",
+          not fx.should_flip_exit("Up", 8.0, 60))
+    check("flip exit: Down, lead +8bps → exit",
+          fx.should_flip_exit("Down", 8.0, 60))
+    check("flip exit: Down, lead -8bps → hold",
+          not fx.should_flip_exit("Down", -8.0, 60))
+    check("flip exit: t_left 5s (mepet resolusi) → hold",
+          not fx.should_flip_exit("Up", -8.0, 5))
+    check("flip exit: t_left 121s (di luar jendela) → hold",
+          not fx.should_flip_exit("Up", -8.0, 121))
+    off = LateWindowStrategy(mkcfg(strategy__flip_exit_bps=0))
+    check("flip_exit_bps=0 → selalu hold",
+          not off.should_flip_exit("Up", -50.0, 60))
+    check("flip exit: lead None → hold", not fx.should_flip_exit("Up", None, 60))
 
 
 def test_broker_store():

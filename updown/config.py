@@ -72,7 +72,7 @@ class StrategyCfg:
     vol_min_bps_sqrt_s: float = 0.30
     vol_max_bps_sqrt_s: float = 3.00
     min_edge: float = 0.005
-    flip_exit_bps: float = 0.0
+    flip_exit_bps: float = 7.0          # jual early jika lead balik ≤ −X bps; 0 = off
 
 
 @dataclass
@@ -83,7 +83,7 @@ class ExecutionCfg:
     participation: float = 0.15
     exhausted_penalty_ticks: int = 2
     stake_mode: str = "fixed"          # fixed | equity_pct
-    stake_usdc: float = 25.0
+    stake_usdc: float = 5.0            # ≥ 5 agar min order 5 share favorit terisi
     stake_pct: float = 2.5
     max_stake_usdc: float = 100.0
 
